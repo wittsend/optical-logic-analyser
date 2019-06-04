@@ -73,6 +73,13 @@ class SamplePoint:
 	def unhighlight(self):
 		self._highlighted = False
 
+	def setName(self, name):
+		print("Name of sampling point changed from " + self._name + " to " + name)
+		self._name = name
+
+	def getName(self):
+		return self._name
+
 	def getColour(self):
 		if(self._highlighted == True):
 			return self._openCvHiLightColour
@@ -98,6 +105,7 @@ class VideoCap:
 	
 	#Sample point list
 	_samplePoints = []
+	_highlightedObject = []
 
 	#State machine vars
 	_mode = ""
@@ -137,6 +145,8 @@ class VideoCap:
 	#Retrive the next frame from the video file and load it into an array
 	def getNextFrame(self):
 		self.getFrame(self._currentFrameNum + 1)
+
+	#Retrive the previous frame from the video file and load it into an array
 	def getPrevFrame(self):
 		self.getFrame(self._currentFrameNum - 1)
 
@@ -159,6 +169,7 @@ class VideoCap:
 		self.drawOverlay(outputIm)
 		cv.imshow(self._fileName, outputIm)
 
+	#Draw the overlay graphics and text
 	def drawOverlay(self, im):
 		fontScale = 0.5
 		textHeight = int(35*fontScale)
@@ -185,29 +196,68 @@ class VideoCap:
 
 		#Draw sample points
 		for sp in self._samplePoints:
-			cv.circle(im, sp.getPos(), sp.getRad(), (0,0,255), 1)
+			cv.circle(im, sp.getPos(), sp.getRad(), sp.getColour(), 1)
 
+	#Releases the opencv video capture object
 	def release(self):
 		self._stream.release()
 
 	#Mouse event callback
 	def opencvMouseEvent(self, event, x, y, flags, params):
-		
+		#Highlight object on mouse over
+		if(event == cv.EVENT_MOUSEMOVE):
+			#Using the current position of the mouse, determine which object (currently just
+			#sampling points) should be highlighted
+			selectedObjects = []
+			#See which sampling points the mouse is over
+			for sp in self._samplePoints:
+				sp.unhighlight()
+				x1, y1 = sp.getPos()
+				rad = int(sp.getRad())
+				if(x > (x1 - rad) and x < (x1 + rad) and y > (y1 - rad) and y < (y1 + rad)):
+					selectedObjects.append(sp)
+
+			#If there is more than one sampling point then the one with the smallest area is the
+			#one that should be selected
+			#If more than one is selected
+			if(len(selectedObjects) > 1):
+				smallestArea = 0xFFFFFFFFFFFFFFFF
+				for so in selectedObjects:
+					rad = so.getRad()
+					area = 2*math.pi*rad
+					if(area < smallestArea):
+					   smallestArea = area
+					   self._highlightedObject = so
+			#If only one is selected
+			elif(len(selectedObjects) == 1):
+				self._highlightedObject = selectedObjects[0]
+			#If none are selected
+			else:
+				self._highlightedObject = []
+			#Highlight the selected object
+			if(self._highlightedObject != []):
+				self._highlightedObject.highlight()
+
+		#If we are currently in add mode and there is a mouse event on the window
 		if(self._mode == "add"):
+			#If we are just about to add a new point
 			if(self._addState == "new point centre"):
 				if(event == cv.EVENT_LBUTTONUP):
 					#Create new sample point and add it to the list:
 					sp = SamplePoint(x, y)
 					self._samplePoints.append(sp)
-					#Shift to the next add sub state
+					#Shift to the next add sub state (set radius of point)
 					self._addState = "point radius"
 				return
 			
 			if(self._addState == "point radius"):
 				#On a left click, move to the next sub state
 				if(event == cv.EVENT_LBUTTONUP):
-					#Eventually this will move on to set other attributes about the point state,
-					#but right now it just finishes the task of adding a new sample point.
+					#In the console window enter a name for the point (No mouse events).
+					inputName = input("Enter name for this point (Press enter for Point" + str(self._samplePoints.index(self._samplePoints[-1])) + "):")
+					if(inputName == ""):
+						inputName = "Point" + str(self._samplePoints.index(self._samplePoints[-1]))
+					self._samplePoints[-1].setName(inputName)
 					self._addState = "new point centre"
 				#On a right click, go back to placing the sample point
 				if(event == cv.EVENT_RBUTTONUP):
@@ -221,19 +271,23 @@ class VideoCap:
 					self._samplePoints[-1].setRad(rad)
 				return
 
+				self._addState == "new point centre"
+
+		#If we are in edit mode.
 		#if(self._mode == "edit"):
 
-		#if(self._mode == "delete"):
+		#If we are and delete mode and left mouse button is pressed, delete the highlighted object.
+		if(self._mode == "delete"):
+			if(event == cv.EVENT_LBUTTONUP):
+				if(self._highlightedObject != []):
+					self._samplePoints.remove(self._highlightedObject)
 
-		#print(event)
 
 
 ######## [MAIN] ############################################################################
 mainState = ""
 
 fileName = "C:\\Users\\matty\\OneDrive\\Documents\\Personal\\Projects\\optical-logic-analyser\\vid2.MP4"
-
-
 
 #Open video file to operate on.
 vidObj = VideoCap(fileName)
