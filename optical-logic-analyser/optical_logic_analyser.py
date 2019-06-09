@@ -33,10 +33,10 @@ class SamplePoint:
 	_x = 0
 	_y = 0
 	_rad = 0
-	_pixelArray = []
-	_avgR = 0
-	_avgG = 0
-	_avgB = 0
+	_bgrArray = []
+	_hsvArray = []
+	_meanBGR = []
+	_meanHSV = []
 	_meterMode = ""
 	_thresUpper = 0
 	_thresLower = 0
@@ -85,6 +85,14 @@ class SamplePoint:
 			return self._openCvHiLightColour
 		else:
 			return self._openCvDrawColour
+
+	def sample(self,im):
+		self._bgrArray.append(im[(self._y - self._rad):(self._y + self._rad), (self._x - self._rad):(self._x + self._rad)])
+		self._hsvArray.append(cv.cvtColor(cv.UMat(self._bgrArray), cv.COLOR_BGR2HSV))
+		self._meanBGR = np.mean(self._bgrArray[-1])
+		self._meanHSV = np.mean(self._hsvArray[-1])
+		print(self._meanBGR)
+		return
 
 class VideoCap:
 	#Data members
@@ -159,7 +167,7 @@ class VideoCap:
 		self._stream.set(cv.CAP_PROP_POS_FRAMES, frameNum)
 		retVal, self._currentFrame = self._stream.read()
 		self._currentFrameNum = frameNum
-		print(self._currentFrameNum)
+		#print(self._currentFrameNum)
 
 	#Display the currently loaded frame in a window. If there is no loaded frame, then load the
 	#next one.
@@ -193,6 +201,9 @@ class VideoCap:
 		cv.putText(im, "Edit (e)", (0, 2*textHeight), cv.FONT_HERSHEY_SIMPLEX, fontScale, editColour, 1)
 		cv.putText(im, "Del (d)", (0, 3*textHeight), cv.FONT_HERSHEY_SIMPLEX, fontScale, delColour, 1)
 		cv.putText(im, "Quit (q)", (0, 4*textHeight), cv.FONT_HERSHEY_SIMPLEX, fontScale, quitColour, 1)
+
+		#Print video position
+		cv.putText(im, str(round(self._currentFrameNum*100/self._frameCount,2)) + "%", (100, 1*textHeight), cv.FONT_HERSHEY_SIMPLEX, fontScale, (255, 255, 0), 1)
 
 		#Draw sample points
 		for sp in self._samplePoints:
@@ -275,16 +286,16 @@ class VideoCap:
 
 		#If we are in edit mode.
 		#if(self._mode == "edit"):
-
+		
 		#If we are and delete mode and left mouse button is pressed, delete the highlighted object.
 		if(self._mode == "delete"):
 			if(event == cv.EVENT_LBUTTONUP):
 				if(self._highlightedObject != []):
 					self._samplePoints.remove(self._highlightedObject)
+		return
 
+######## [MAIN] ##################################################################################
 
-
-######## [MAIN] ############################################################################
 mainState = ""
 
 fileName = "C:\\Users\\matty\\OneDrive\\Documents\\Personal\\Projects\\optical-logic-analyser\\vid2.MP4"
@@ -330,6 +341,13 @@ while(True):
 	#	print(str(keyPress))
 
 	vidObj.showFrame(mainState)
+
+
+
+
+cv.waitKeyEx(0)
+for sample in vidObj._samplePoints:
+	sample.sample(vidObj._currentFrame)
 
 vidObj.release()
 cv.destroyAllWindows()
